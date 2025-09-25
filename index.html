@@ -11,30 +11,29 @@
     <div id="login-view">
       <h2>Login</h2>
       <input type="email" id="email" placeholder="Enter Gmail ID">
-      <button onclick="login()">Login</button>
+      <button id="loginBtn">Login</button>
     </div>
 
     <!-- Admin Dashboard -->
     <div id="admin-view" class="hidden">
       <h2>Admin Dashboard</h2>
-      <button onclick="showAssignTask()">Assign Task</button>
-      <button onclick="showAllTasks()">All Tasks</button>
-      <button onclick="showCompletedTasks()">Completed Tasks</button>
-      <button onclick="logout()">Logout</button>
+      <button id="assignTaskBtn">Assign Task</button>
+      <button id="allTasksBtn">All Tasks</button>
+      <button id="completedTasksBtn">Completed Tasks</button>
+      <button id="logoutBtnAdmin">Logout</button>
       <div id="admin-content"></div>
     </div>
 
     <!-- User Dashboard -->
     <div id="user-view" class="hidden">
       <h2>My Tasks</h2>
-      <button onclick="showMyTasks()">Active Tasks</button>
-      <button onclick="showMyCompletedTasks()">Completed Tasks</button>
-      <button onclick="logout()">Logout</button>
+      <button id="myTasksBtn">Active Tasks</button>
+      <button id="myCompletedTasksBtn">Completed Tasks</button>
+      <button id="logoutBtnUser">Logout</button>
       <div id="user-content"></div>
     </div>
   </div>
 
-  <!-- Load JS at the end of body -->
   <script src="script.js"></script>
 </body>
 </html>
