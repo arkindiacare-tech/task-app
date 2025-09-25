@@ -3,7 +3,7 @@
 // ===============================
 
 // Replace this with your deployed Apps Script URL (CORS-enabled)
-const API_URL = "https://script.google.com/macros/s/AKfycbwNPC5Z7kiBdWMq8Pc1QnWkfymxR0B3pDDY_oXHCb5qAq3cERkazBTO4XcC2-cx4kE3/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzUAs5AD4k2OZipzMPft_rNsiAlHxSdYangAIGbsZ_WzlcLmlRMyyqtaFuY3TRUHhmW/exec";
 
 let loggedInUser = null;
 
