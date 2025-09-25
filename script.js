@@ -12,10 +12,11 @@ function login() {
   const email = document.getElementById("email").value.trim().toLowerCase();
 
   fetch(API_URL + "?action=getUsers")
-    .then(res => res.text())           // use text() because backend uses HtmlService
-    .then(txt => JSON.parse(txt))      // parse JSON manually
+    .then(res => res.text())
+    .then(txt => JSON.parse(txt))
     .then(users => {
-      const user = users.find(u => u.Email.toLowerCase() === email); // case-insensitive match
+      const user = users.find(u => u.Email.toLowerCase() === email);
+      console.log("Logged in user:", user);
       if (user) {
         loggedInUser = user;
         localStorage.setItem("loggedInUser", JSON.stringify(user));
@@ -33,6 +34,9 @@ function login() {
 // === Load Dashboard ===
 function loadDashboard(user) {
   document.getElementById("login-view").classList.add("hidden");
+
+  document.getElementById("admin-content").innerHTML = "";
+  document.getElementById("user-content").innerHTML = "";
 
   if (user.Role.toLowerCase() === "admin") {
     document.getElementById("admin-view").classList.remove("hidden");
