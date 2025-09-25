@@ -3,7 +3,7 @@
 // ===============================
 
 // Replace with your deployed Apps Script URL
-const API_URL = "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw_5Ulh8InxRk_zSXJp3_d6tAR7VL9XEp0uBHBg2yRI8VIyQw7270TlXUPVm6EmPam8/exec";
 
 let loggedInUser = null;
 
