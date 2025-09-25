@@ -1,5 +1,9 @@
+// ===============================
+// Task App Frontend Script.js
+// ===============================
+
 // Replace with your deployed Apps Script URL
-const API_URL = "https://script.google.com/macros/s/AKfycbzUAs5AD4k2OZipzMPft_rNsiAlHxSdYangAIGbsZ_WzlcLmlRMyyqtaFuY3TRUHhmW/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw_5Ulh8InxRk_zSXJp3_d6tAR7VL9XEp0uBHBg2yRI8VIyQw7270TlXUPVm6EmPam8/exec";
 
 let loggedInUser = null;
 
@@ -8,9 +12,10 @@ function login() {
   const email = document.getElementById("email").value.trim().toLowerCase();
 
   fetch(API_URL + "?action=getUsers")
-    .then(res => res.json())
+    .then(res => res.text())           // use text() because backend uses HtmlService
+    .then(txt => JSON.parse(txt))      // parse JSON manually
     .then(users => {
-      const user = users.find(u => u.email.toLowerCase() === email);
+      const user = users.find(u => u.Email.toLowerCase() === email); // case-insensitive match
       if (user) {
         loggedInUser = user;
         localStorage.setItem("loggedInUser", JSON.stringify(user));
@@ -21,7 +26,7 @@ function login() {
     })
     .catch(err => {
       console.error("Login Error:", err);
-      alert("Backend not responding. Check Apps Script deployment and CORS.");
+      alert("Backend not responding. Check Apps Script deployment.");
     });
 }
 
@@ -29,7 +34,7 @@ function login() {
 function loadDashboard(user) {
   document.getElementById("login-view").classList.add("hidden");
 
-  if (user.role === "admin") {
+  if (user.Role.toLowerCase() === "admin") {
     document.getElementById("admin-view").classList.remove("hidden");
     showAllTasks();
   } else {
@@ -62,7 +67,7 @@ function showAssignTask() {
     <input type="text" id="taskName" placeholder="Task Name"><br>
     <textarea id="taskDesc" placeholder="Description"></textarea><br>
     <input type="text" id="assignedTo" placeholder="Assign to (email)"><br>
-    <button type="button" onclick="addTask()">Save Task</button>
+    <button onclick="addTask()">Save Task</button>
   `;
 }
 
@@ -80,13 +85,17 @@ function addTask() {
 
   fetch(API_URL + "?action=addTask", {
     method: "POST",
-    body: JSON.stringify(task),
-    headers: { "Content-Type": "application/json" }
+    body: JSON.stringify(task)
   })
     .then(res => res.text())
-    .then(msg => {
-      alert("Task Added Successfully");
-      showAllTasks();
+    .then(txt => {
+      const result = JSON.parse(txt);
+      if (result.success) {
+        alert("Task Added Successfully");
+        showAllTasks();
+      } else {
+        alert("Error adding task");
+      }
     })
     .catch(err => {
       console.error("Add Task Error:", err);
@@ -95,12 +104,13 @@ function addTask() {
 }
 
 function showAllTasks() {
-  fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
-    .then(res => res.json())
+  fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.Email)
+    .then(res => res.text())
+    .then(txt => JSON.parse(txt))
     .then(tasks => {
       let html = "<h3>All Tasks</h3><ul>";
       tasks.forEach(t => {
-        html += `<li><b>${t.taskName}</b> → ${t.assignedTo} [${t.status}]</li>`;
+        html += `<li><b>${t.TaskName}</b> → ${t.AssignedTo} [${t.Status}]</li>`;
       });
       html += "</ul>";
       document.getElementById("admin-content").innerHTML = html;
@@ -108,12 +118,13 @@ function showAllTasks() {
 }
 
 function showCompletedTasks() {
-  fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
-    .then(res => res.json())
+  fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.Email)
+    .then(res => res.text())
+    .then(txt => JSON.parse(txt))
     .then(tasks => {
       let html = "<h3>Completed Tasks</h3><ul>";
-      tasks.filter(t => t.status === "Completed").forEach(t => {
-        html += `<li>${t.taskName} ✅</li>`;
+      tasks.filter(t => t.Status.toLowerCase() === "completed").forEach(t => {
+        html += `<li>${t.TaskName} ✅</li>`;
       });
       html += "</ul>";
       document.getElementById("admin-content").innerHTML = html;
@@ -124,12 +135,13 @@ function showCompletedTasks() {
 // User Functions
 // ===============================
 function showMyTasks() {
-  fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
-    .then(res => res.json())
+  fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.Email)
+    .then(res => res.text())
+    .then(txt => JSON.parse(txt))
     .then(tasks => {
       let html = "<h3>My Active Tasks</h3><ul>";
-      tasks.filter(t => t.status !== "Completed").forEach(t => {
-        html += `<li>${t.taskName} → ${t.status}</li>`;
+      tasks.filter(t => t.Status.toLowerCase() !== "completed").forEach(t => {
+        html += `<li>${t.TaskName} → ${t.Status}</li>`;
       });
       html += "</ul>";
       document.getElementById("user-content").innerHTML = html;
@@ -137,14 +149,14 @@ function showMyTasks() {
 }
 
 function showMyCompletedTasks() {
-  fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
-    .then(res => res.json())
+  fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.Email)
+    .then(res => res.text())
+    .then(txt => JSON.parse(txt))
     .then(tasks => {
       let html = "<h3>My Completed Tasks</h3><ul>";
-      tasks.filter(t => t.status === "Completed").forEach(t => {
-        html += `<li>${t.taskName} ✅</li>`;
+      tasks.filter(t => t.Status.toLowerCase() === "completed").forEach(t => {
+        html += `<li>${t.TaskName} ✅</li>`;
       });
       html += "</ul>";
       document.getElementById("user-content").innerHTML = html;
     });
-}
