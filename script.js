@@ -2,7 +2,7 @@
 // Task App Frontend Script.js
 // ===============================
 
-// Replace this with your deployed Apps Script URL (CORS-enabled)
+// Replace with your deployed Apps Script URL (CORS-enabled)
 const API_URL = "https://script.google.com/macros/s/AKfycbzUAs5AD4k2OZipzMPft_rNsiAlHxSdYangAIGbsZ_WzlcLmlRMyyqtaFuY3TRUHhmW/exec";
 
 let loggedInUser = null;
@@ -11,7 +11,6 @@ let loggedInUser = null;
 function login() {
   const email = document.getElementById("email").value.trim().toLowerCase();
 
-  // Fetch users from Google Sheet
   fetch(API_URL + "?action=getUsers")
     .then(res => res.json())
     .then(users => {
@@ -36,7 +35,7 @@ function loadDashboard(user) {
 
   if (user.role === "admin") {
     document.getElementById("admin-view").classList.remove("hidden");
-    showAllTasks(); // optional: show tasks by default
+    showAllTasks(); // show tasks by default
   } else {
     document.getElementById("user-view").classList.remove("hidden");
     showMyTasks();
@@ -62,21 +61,19 @@ window.onload = function() {
 // Admin Functions
 // ===============================
 
-// Show Assign Task Form
 function showAssignTask() {
   document.getElementById("admin-content").innerHTML = `
     <h3>Assign New Task</h3>
     <input type="text" id="taskName" placeholder="Task Name"><br>
     <textarea id="taskDesc" placeholder="Description"></textarea><br>
     <input type="text" id="assignedTo" placeholder="Assign to (email)"><br>
-    <button onclick="addTask()">Save Task</button>
+    <button type="button" onclick="addTask()">Save Task</button>
   `;
 }
 
-// Add Task to Google Sheet
 function addTask() {
   const task = {
-    id: Date.now(), // simple unique ID
+    id: Date.now(),
     date: new Date().toLocaleDateString(),
     taskName: document.getElementById("taskName").value,
     description: document.getElementById("taskDesc").value,
@@ -102,7 +99,6 @@ function addTask() {
     });
 }
 
-// Show All Tasks (Admin)
 function showAllTasks() {
   fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
     .then(res => res.json())
@@ -116,7 +112,6 @@ function showAllTasks() {
     });
 }
 
-// Show Completed Tasks (Admin)
 function showCompletedTasks() {
   fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
     .then(res => res.json())
@@ -134,7 +129,6 @@ function showCompletedTasks() {
 // User Functions
 // ===============================
 
-// Show My Active Tasks
 function showMyTasks() {
   fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
     .then(res => res.json())
@@ -148,7 +142,6 @@ function showMyTasks() {
     });
 }
 
-// Show My Completed Tasks
 function showMyCompletedTasks() {
   fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
     .then(res => res.json())
@@ -160,3 +153,4 @@ function showMyCompletedTasks() {
       html += "</ul>";
       document.getElementById("user-content").innerHTML = html;
     });
+}
