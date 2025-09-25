@@ -179,3 +179,4 @@ window.onload = function() {
   document.getElementById("logoutBtnAdmin").addEventListener("click", logout);
   document.getElementById("logoutBtnUser").addEventListener("click", logout);
 };
+
