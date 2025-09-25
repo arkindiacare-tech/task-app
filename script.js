@@ -3,7 +3,7 @@
 // ===============================
 
 // Replace with your deployed Apps Script URL
-const API_URL = "https://script.google.com/macros/s/AKfycbw_5Ulh8InxRk_zSXJp3_d6tAR7VL9XEp0uBHBg2yRI8VIyQw7270TlXUPVm6EmPam8/exec";
+const API_URL = "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec";
 
 let loggedInUser = null;
 
@@ -160,7 +160,7 @@ function showMyCompletedTasks() {
 }
 
 // ===============================
-// Event Listeners for buttons
+// Attach Event Listeners
 // ===============================
 window.onload = function() {
   const savedUser = localStorage.getItem("loggedInUser");
@@ -169,7 +169,7 @@ window.onload = function() {
     loadDashboard(loggedInUser);
   }
 
-  // Attach event listeners
+  // Attach all button listeners
   document.getElementById("loginBtn").addEventListener("click", login);
   document.getElementById("assignTaskBtn").addEventListener("click", showAssignTask);
   document.getElementById("allTasksBtn").addEventListener("click", showAllTasks);
