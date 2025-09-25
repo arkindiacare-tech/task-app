@@ -1,5 +1,5 @@
 // Replace this with your deployed Apps Script URL
-const API_URL = "https://script.google.com/macros/s/AKfycbzQtkLVkMUeUTjeMhOBpNrkPoJkxlJyJ7SObscwMSWbHACYaeqV55KMSSEMWMifUP4p/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbz8185nbB6Km-m68qr0IiQV8_qZGziX_K3nlkhCHHBY1M_x3-mon6KZUy8ydQyVNrk7/exec";
 
 let loggedInUser = null;
 
