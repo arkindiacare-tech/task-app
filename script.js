@@ -1,9 +1,13 @@
-// Replace this with your deployed Apps Script URL
-const API_URL = "https://script.google.com/macros/s/AKfycbz8185nbB6Km-m68qr0IiQV8_qZGziX_K3nlkhCHHBY1M_x3-mon6KZUy8ydQyVNrk7/exec";
+// ===============================
+// Task App Frontend Script.js
+// ===============================
+
+// Replace this with your deployed Apps Script URL (CORS-enabled)
+const API_URL = "https://script.google.com/macros/s/AKfycbwNPC5Z7kiBdWMq8Pc1QnWkfymxR0B3pDDY_oXHCb5qAq3cERkazBTO4XcC2-cx4kE3/exec";
 
 let loggedInUser = null;
 
-// === Login ===
+// === Login Function ===
 function login() {
   const email = document.getElementById("email").value.trim().toLowerCase();
 
@@ -22,18 +26,20 @@ function login() {
     })
     .catch(err => {
       console.error("Login Error:", err);
-      alert("Backend not responding. Check Apps Script deployment.");
+      alert("Backend not responding. Check Apps Script deployment and CORS.");
     });
 }
 
-// === Load Correct Dashboard ===
+// === Load Dashboard ===
 function loadDashboard(user) {
   document.getElementById("login-view").classList.add("hidden");
 
   if (user.role === "admin") {
     document.getElementById("admin-view").classList.remove("hidden");
+    showAllTasks(); // optional: show tasks by default
   } else {
     document.getElementById("user-view").classList.remove("hidden");
+    showMyTasks();
   }
 }
 
@@ -52,7 +58,11 @@ window.onload = function() {
   }
 };
 
-// === Admin Functions ===
+// ===============================
+// Admin Functions
+// ===============================
+
+// Show Assign Task Form
 function showAssignTask() {
   document.getElementById("admin-content").innerHTML = `
     <h3>Assign New Task</h3>
@@ -63,6 +73,7 @@ function showAssignTask() {
   `;
 }
 
+// Add Task to Google Sheet
 function addTask() {
   const task = {
     id: Date.now(), // simple unique ID
@@ -91,6 +102,7 @@ function addTask() {
     });
 }
 
+// Show All Tasks (Admin)
 function showAllTasks() {
   fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
     .then(res => res.json())
@@ -104,6 +116,7 @@ function showAllTasks() {
     });
 }
 
+// Show Completed Tasks (Admin)
 function showCompletedTasks() {
   fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
     .then(res => res.json())
@@ -117,7 +130,11 @@ function showCompletedTasks() {
     });
 }
 
-// === User Functions ===
+// ===============================
+// User Functions
+// ===============================
+
+// Show My Active Tasks
 function showMyTasks() {
   fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
     .then(res => res.json())
@@ -131,6 +148,7 @@ function showMyTasks() {
     });
 }
 
+// Show My Completed Tasks
 function showMyCompletedTasks() {
   fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
     .then(res => res.json())
@@ -142,5 +160,3 @@ function showMyCompletedTasks() {
       html += "</ul>";
       document.getElementById("user-content").innerHTML = html;
     });
-}
-
