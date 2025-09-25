@@ -11,31 +11,30 @@
     <div id="login-view">
       <h2>Login</h2>
       <input type="email" id="email" placeholder="Enter Gmail ID">
-      <button type="button" onclick="login()">Login</button>
+      <button onclick="login()">Login</button>
     </div>
 
     <!-- Admin Dashboard -->
     <div id="admin-view" class="hidden">
       <h2>Admin Dashboard</h2>
-      <button type="button" onclick="showAssignTask()">Assign Task</button>
-      <button type="button" onclick="showAllTasks()">All Tasks</button>
-      <button type="button" onclick="showCompletedTasks()">Completed Tasks</button>
-      <button type="button" onclick="logout()">Logout</button>
-
+      <button onclick="showAssignTask()">Assign Task</button>
+      <button onclick="showAllTasks()">All Tasks</button>
+      <button onclick="showCompletedTasks()">Completed Tasks</button>
+      <button onclick="logout()">Logout</button>
       <div id="admin-content"></div>
     </div>
 
     <!-- User Dashboard -->
     <div id="user-view" class="hidden">
       <h2>My Tasks</h2>
-      <button type="button" onclick="showMyTasks()">Active Tasks</button>
-      <button type="button" onclick="showMyCompletedTasks()">Completed Tasks</button>
-      <button type="button" onclick="logout()">Logout</button>
-
+      <button onclick="showMyTasks()">Active Tasks</button>
+      <button onclick="showMyCompletedTasks()">Completed Tasks</button>
+      <button onclick="logout()">Logout</button>
       <div id="user-content"></div>
     </div>
   </div>
 
+  <!-- Load JS at the end of body -->
   <script src="script.js"></script>
 </body>
 </html>
