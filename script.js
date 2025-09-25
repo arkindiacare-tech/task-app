@@ -1,8 +1,4 @@
-// ===============================
-// Task App Frontend Script.js
-// ===============================
-
-// Replace with your deployed Apps Script URL (CORS-enabled)
+// Replace with your deployed Apps Script URL
 const API_URL = "https://script.google.com/macros/s/AKfycbzUAs5AD4k2OZipzMPft_rNsiAlHxSdYangAIGbsZ_WzlcLmlRMyyqtaFuY3TRUHhmW/exec";
 
 let loggedInUser = null;
@@ -35,7 +31,7 @@ function loadDashboard(user) {
 
   if (user.role === "admin") {
     document.getElementById("admin-view").classList.remove("hidden");
-    showAllTasks(); // show tasks by default
+    showAllTasks();
   } else {
     document.getElementById("user-view").classList.remove("hidden");
     showMyTasks();
@@ -60,7 +56,6 @@ window.onload = function() {
 // ===============================
 // Admin Functions
 // ===============================
-
 function showAssignTask() {
   document.getElementById("admin-content").innerHTML = `
     <h3>Assign New Task</h3>
@@ -128,7 +123,6 @@ function showCompletedTasks() {
 // ===============================
 // User Functions
 // ===============================
-
 function showMyTasks() {
   fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.email)
     .then(res => res.json())
