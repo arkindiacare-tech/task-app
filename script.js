@@ -16,7 +16,6 @@ function login() {
     .then(txt => JSON.parse(txt))
     .then(users => {
       const user = users.find(u => u.Email.toLowerCase() === email);
-      console.log("Logged in user:", user);
       if (user) {
         loggedInUser = user;
         localStorage.setItem("loggedInUser", JSON.stringify(user));
@@ -53,15 +52,6 @@ function logout() {
   location.reload();
 }
 
-// === Auto Login if Saved ===
-window.onload = function() {
-  const savedUser = localStorage.getItem("loggedInUser");
-  if (savedUser) {
-    loggedInUser = JSON.parse(savedUser);
-    loadDashboard(loggedInUser);
-  }
-};
-
 // ===============================
 // Admin Functions
 // ===============================
@@ -71,8 +61,11 @@ function showAssignTask() {
     <input type="text" id="taskName" placeholder="Task Name"><br>
     <textarea id="taskDesc" placeholder="Description"></textarea><br>
     <input type="text" id="assignedTo" placeholder="Assign to (email)"><br>
-    <button onclick="addTask()">Save Task</button>
+    <button id="saveTaskBtn">Save Task</button>
   `;
+
+  // Attach listener
+  document.getElementById("saveTaskBtn").addEventListener("click", addTask);
 }
 
 function addTask() {
@@ -164,3 +157,25 @@ function showMyCompletedTasks() {
       html += "</ul>";
       document.getElementById("user-content").innerHTML = html;
     });
+}
+
+// ===============================
+// Event Listeners for buttons
+// ===============================
+window.onload = function() {
+  const savedUser = localStorage.getItem("loggedInUser");
+  if (savedUser) {
+    loggedInUser = JSON.parse(savedUser);
+    loadDashboard(loggedInUser);
+  }
+
+  // Attach event listeners
+  document.getElementById("loginBtn").addEventListener("click", login);
+  document.getElementById("assignTaskBtn").addEventListener("click", showAssignTask);
+  document.getElementById("allTasksBtn").addEventListener("click", showAllTasks);
+  document.getElementById("completedTasksBtn").addEventListener("click", showCompletedTasks);
+  document.getElementById("myTasksBtn").addEventListener("click", showMyTasks);
+  document.getElementById("myCompletedTasksBtn").addEventListener("click", showMyCompletedTasks);
+  document.getElementById("logoutBtnAdmin").addEventListener("click", logout);
+  document.getElementById("logoutBtnUser").addEventListener("click", logout);
+};
