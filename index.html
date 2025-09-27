@@ -3,283 +3,805 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Collaborative Task List</title>
+    <title>Simplified Task Manager</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom styles for aesthetic appeal and responsiveness */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f1f5f9; /* Slate 100 */
-        }
-        .task-card {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-        }
-        /* Custom scrollbar for task list */
-        #taskList::-webkit-scrollbar {
-            width: 6px;
-        }
-        #taskList::-webkit-scrollbar-thumb {
-            background-color: #94a3b8; /* Slate 400 */
-            border-radius: 3px;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .task-card { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); }
+        .log-user { background-color: #eff6ff; border-left: 4px solid #3b82f6; text-align: left; }
+        .log-admin { background-color: #fef2f2; border-right: 4px solid #ef4444; text-align: right; }
+        .loading-overlay { 
+            position: fixed; 
+            top: 0; left: 0; right: 0; bottom: 0; 
+            background: rgba(255, 255, 255, 0.8); 
+            z-index: 100; 
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; 
         }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8 flex flex-col items-center">
+    
+    <!-- Loading Overlay for Uploads -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500"></div>
+        <p id="loadingMessage" class="mt-4 text-lg font-semibold text-purple-600">Uploading large file... Please wait.</p>
+    </div>
 
-    <div class="w-full max-w-2xl">
+    <div class="w-full max-w-4xl pb-24">
         <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">Team Task Board</h1>
-            <p class="text-gray-500">Real-time task synchronization for all users.</p>
-            <div id="userInfo" class="mt-2 text-xs text-blue-600 font-medium p-1 bg-blue-100 rounded-full inline-block px-3">
-                Loading User...
-            </div>
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Simplified Task Manager</h1>
+            <p id="userInfo" class="mt-2 text-sm text-blue-600 font-medium p-1 bg-blue-100 rounded-full inline-block px-3">
+                Please Login
+            </p>
+            <button id="logoutBtn" class="ml-4 text-xs text-red-500 hover:text-red-700 hidden">Logout</button>
         </header>
 
-        <!-- New Task Input Section -->
-        <div class="task-card bg-white p-5 rounded-xl mb-8">
-            <h2 class="text-xl font-semibold mb-3 text-gray-700">Add New Task</h2>
-            <div class="flex flex-col sm:flex-row gap-3">
-                <input type="text" id="taskInput" placeholder="Enter new task description..."
-                       class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
-                <button id="addTaskBtn"
-                        class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-150 active:scale-95 disabled:bg-blue-300">
-                    Add Task
-                </button>
+        <!-- Main Content Container -->
+        <main id="appContainer" class="hidden">
+            <!-- Search Bar (Simplified - Admin filters removed) -->
+            <div class="mb-6 task-card bg-white p-4 rounded-xl flex">
+                <input type="text" id="searchInput" placeholder="Search tasks by name, description, or log conversation..."
+                       class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 transition duration-150">
             </div>
-            <div id="messageBox" class="text-sm mt-3 text-red-500 hidden"></div>
+
+            <!-- Task List Display (Running/Completed) -->
+            <div id="taskDisplay" class="task-card bg-white p-5 rounded-xl min-h-[50vh] flex flex-col">
+                <h2 id="taskHeader" class="text-2xl font-semibold mb-4 text-gray-700">Tasks in Hand (Under Progress)</h2>
+                <div id="taskList" class="space-y-4 overflow-y-auto max-h-[60vh] flex-grow">
+                    <p class="text-center text-gray-400 p-4" id="initialMessage">Select a tab or wait for tasks to load...</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Login View -->
+        <div id="loginView" class="w-full max-w-sm mx-auto task-card bg-white p-8 rounded-xl mt-10">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-700 text-center">Login</h2>
+            <input type="text" id="loginId" placeholder="User ID" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-purple-500 focus:border-purple-500">
+            <input type="password" id="loginPassword" placeholder="Password" class="w-full p-3 border border-gray-300 rounded-lg mb-6 focus:ring-purple-500 focus:border-purple-500">
+            <button id="loginBtn" class="w-full bg-purple-600 text-white font-semibold py-3 rounded-lg hover:bg-purple-700 transition duration-150 active:scale-95">
+                Login
+            </button>
+            <p id="loginMessage" class="text-sm mt-4 text-red-500 text-center"></p>
+            <p class="text-xs text-gray-500 text-center mt-4">
+                Try: 👑 Admin (ID: **admin**, Pass: **12345**) or 🧑 User (ID: **user**, Pass: **54321**)
+            </p>
         </div>
 
-        <!-- Task List Display -->
-        <div class="task-card bg-white p-5 rounded-xl">
-            <h2 class="text-xl font-semibold mb-4 text-gray-700">Pending Tasks</h2>
-            <div id="taskList" class="space-y-3 overflow-y-auto max-h-[60vh]">
-                <!-- Tasks will be rendered here by JavaScript -->
-                <p id="loadingMessage" class="text-center text-gray-400">Loading tasks...</p>
-            </div>
+        <!-- Floating Modals -->
+        <div id="modalContainer">
+            <!-- Task Assignment/Edit Modal -->
         </div>
+
+        <!-- Bottom Navigation (Always Visible when logged in) -->
+        <nav id="bottomNav" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg hidden">
+            <div class="flex justify-around items-center h-16 max-w-4xl mx-auto">
+                <!-- Running Tab -->
+                <button data-tab="running" class="nav-tab flex flex-col items-center p-2 text-purple-600 transition duration-150 hover:bg-gray-100 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span class="text-xs mt-1">Running</span>
+                </button>
+                <!-- Completed Tab -->
+                <button data-tab="completed" class="nav-tab flex flex-col items-center p-2 text-gray-500 transition duration-150 hover:bg-gray-100 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2l4-4m6 2a9 9 0 11-18 0a9 9 0 0118 0z" />
+                    </svg>
+                    <span class="text-xs mt-1">Completed</span>
+                </button>
+                <!-- Admin Only: Assign Task Tab -->
+                <button data-tab="assign" class="nav-tab admin-only flex flex-col items-center p-2 text-gray-500 transition duration-150 hover:bg-gray-100 rounded-lg hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0a9 9 0 0118 0z" />
+                    </svg>
+                    <span class="text-xs mt-1">Assign</span>
+                </button>
+            </div>
+        </nav>
+
     </div>
 
     <!-- Firebase SDK Imports -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, updateDoc, deleteDoc, onSnapshot, collection, query, orderBy, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, updateDoc, onSnapshot, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Import Storage SDK components
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
-        // Global Firebase variables provided by the Canvas environment
+
+        // --- HARDCODED USER DEFINITIONS ---
+        const HARDCODED_USERS = [
+            { id: 'admin', password: '12345', role: 'admin' },
+            { id: 'user', password: '54321', role: 'user' },
+            { id: 'jane', password: 'password', role: 'user' },
+            { id: 'doe', password: 'password', role: 'user' },
+        ];
+        
+        // --- GLOBAL VARIABLES AND CONSTANTS ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let app, db, auth, userId = null;
-        let isAuthReady = false;
+        let app, db, auth, storage; // Added storage instance
+        let currentUser = null;
+        let currentRole = null;
+        let activeTab = 'running';
+        let allTasks = [];
+        let searchTerm = ''; 
+        let newAssignmentImageFile = null; // Changed from Base64 string to hold the File object
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB limit for efficiency
 
-        const taskInput = document.getElementById('taskInput');
-        const addTaskBtn = document.getElementById('addTaskBtn');
+        // UI Elements
+        const loginView = document.getElementById('loginView');
+        const appContainer = document.getElementById('appContainer');
+        const bottomNav = document.getElementById('bottomNav');
         const taskList = document.getElementById('taskList');
-        const messageBox = document.getElementById('messageBox');
+        const taskHeader = document.getElementById('taskHeader');
+        const searchInput = document.getElementById('searchInput');
         const userInfo = document.getElementById('userInfo');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const modalContainer = document.getElementById('modalContainer');
+        const loadingOverlay = document.getElementById('loadingOverlay');
 
-        // Function to display messages (instead of alert)
-        const showMessage = (msg, type = 'error') => {
-            messageBox.textContent = msg;
-            messageBox.className = `text-sm mt-3 p-2 rounded-lg ${type === 'error' ? 'text-red-700 bg-red-100' : 'text-green-700 bg-green-100'}`;
-            messageBox.classList.remove('hidden');
-            setTimeout(() => messageBox.classList.add('hidden'), 5000);
+        // --- UTILITY FUNCTIONS ---
+
+        const showLoading = (show, message = "Processing...") => {
+            loadingOverlay.classList.toggle('hidden', !show);
+            document.getElementById('loadingMessage').textContent = message;
         };
 
-        // --- Firebase Initialization and Authentication ---
+        const showMessage = (msg, type = 'error', targetId = 'loginMessage') => {
+            const target = document.getElementById(targetId);
+            if (!target) return;
+            target.textContent = msg;
+            target.className = `text-sm mt-4 p-2 rounded-lg text-center ${type === 'error' ? 'text-red-700 bg-red-100' : 'text-green-700 bg-green-100'}`;
+            setTimeout(() => target.textContent = '', 5000);
+        };
+
+        const formatTimestamp = (timestamp) => {
+            if (!timestamp) return 'N/A';
+            const date = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp);
+            return date.toLocaleString();
+        };
+        
+        // Converts a selected File object to a local URL for preview
+        const fileToPreviewURL = (file) => {
+            return URL.createObjectURL(file);
+        };
+
+        // --- FIREBASE INITIALIZATION AND AUTHENTICATION ---
+
         const initializeFirebase = async () => {
+            if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.projectId) {
+                console.error("Configuration Error: Firebase config is missing.");
+                userInfo.textContent = "Error: Config Missing";
+                return;
+            }
             try {
-                // setLogLevel('Debug'); // Uncomment for debugging
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
+                storage = getStorage(app); // Initialize Storage
+                
+                await signInAnonymously(auth);
 
-                // Handle authentication status
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        userInfo.textContent = `User ID: ${userId}`;
-                        isAuthReady = true;
-                        console.log('User authenticated:', userId);
-                        // Start listening to tasks only after authentication is ready
-                        setupTaskListener();
-                    } else {
-                        // Attempt to authenticate
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    }
-                });
+                setupTaskListener();
             } catch (error) {
                 console.error("Firebase initialization failed:", error);
-                showMessage(`Failed to initialize app: ${error.message}`, 'error');
+                showMessage(`Failed to initialize app: ${error.message}`);
             }
         };
 
-        // --- Firestore Operations ---
+        // --- FIREBASE STORAGE UTILITY ---
+        
+        const uploadFileToStorage = async (file, taskId) => {
+            const filePath = `tasks/${appId}/${taskId}/${file.name}_${new Date().getTime()}`;
+            const storageRef = ref(storage, filePath);
+            
+            showLoading(true, `Uploading ${file.name}...`);
 
-        // Firestore data path (Public data for collaboration)
-        const getTasksCollectionRef = () => {
-            if (!db || !userId) return null;
-            // Public path: /artifacts/{appId}/public/data/tasks
-            const collectionPath = `artifacts/${appId}/public/data/tasks`;
-            return collection(db, collectionPath);
+            try {
+                const snapshot = await uploadBytes(storageRef, file);
+                const downloadURL = await getDownloadURL(snapshot.ref);
+                showLoading(false);
+                return downloadURL;
+            } catch (error) {
+                showLoading(false);
+                throw new Error(`Upload failed: ${error.message}`);
+            }
         };
+
+        // --- AUTHENTICATION & UI SWITCHING (Same as before) ---
+
+        const handleLogin = (id, password) => {
+            const user = HARDCODED_USERS.find(u => u.id === id && u.password === password);
+            
+            if (user) {
+                currentUser = user;
+                currentRole = user.role;
+                
+                loginView.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                bottomNav.classList.remove('hidden');
+                userInfo.textContent = `${user.role.toUpperCase()} (${user.id})`;
+                logoutBtn.classList.remove('hidden');
+                
+                document.querySelectorAll('.admin-only').forEach(el => 
+                    el.classList.toggle('hidden', currentRole !== 'admin')
+                );
+
+                showMessage(`Welcome, ${user.id}!`, 'success', 'loginMessage');
+                renderApp(); 
+            } else {
+                showMessage('Invalid ID or password. Check the credentials provided below.', 'error', 'loginMessage');
+            }
+        };
+
+        const handleLogout = () => {
+            currentUser = null;
+            currentRole = null;
+            allTasks = [];
+            searchTerm = '';
+            newAssignmentImageFile = null; // Reset image state
+            
+            loginView.classList.remove('hidden');
+            appContainer.classList.add('hidden');
+            bottomNav.classList.add('hidden');
+            logoutBtn.classList.add('hidden');
+            userInfo.textContent = "Please Login";
+            taskList.innerHTML = '<p class="text-center text-gray-400 p-4">Select a tab or wait for tasks to load...</p>';
+            closeModal();
+        };
+
+        // --- FIRESTORE LISTENER (Tasks Only) ---
+
+        const getTasksCollectionRef = () => collection(db, `artifacts/${appId}/public/data/tasks`);
 
         const setupTaskListener = () => {
             const tasksRef = getTasksCollectionRef();
-            if (!tasksRef) return;
-
-            // Note: We avoid orderBy() to prevent index creation errors, and sort locally.
-            const q = query(tasksRef);
-
-            // Real-time listener for task changes
-            onSnapshot(q, (snapshot) => {
-                const tasks = [];
+            onSnapshot(tasksRef, (snapshot) => {
+                allTasks = [];
                 snapshot.forEach(doc => {
-                    tasks.push({ id: doc.id, ...doc.data() });
+                    allTasks.push({ id: doc.id, ...doc.data() });
                 });
-
-                // Sort locally by creation date (newest first)
-                tasks.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-
-                renderTasks(tasks);
+                allTasks.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+                
+                if (currentUser) renderApp();
             }, (error) => {
                 console.error("Error listening to tasks:", error);
-                showMessage("Could not load tasks in real-time.", 'error');
             });
         };
 
-        const addTask = async (description) => {
-            if (!isAuthReady || !db) return showMessage("App not ready. Please wait.", 'error');
+        // --- TASK MANAGEMENT (CRUD & STATUS) ---
 
+        const addTask = async (name, description, assignedToId, imageFile) => {
+            if (!currentUser || currentRole !== 'admin') return;
             const tasksRef = getTasksCollectionRef();
-            if (!tasksRef) return showMessage("Firestore connection failed.", 'error');
+            
+            try {
+                // 1. Create a temporary document reference to get a unique ID
+                const tempDocRef = doc(tasksRef);
+                const taskId = tempDocRef.id;
+                let imageUrl = null;
+                
+                // 2. Upload image if a file exists
+                if (imageFile) {
+                    imageUrl = await uploadFileToStorage(imageFile, taskId);
+                }
+                
+                // 3. Create the final task object using the generated ID and URL
+                const newTask = {
+                    name: name,
+                    description: description,
+                    status: 'under_progress', 
+                    assignedToId: assignedToId,
+                    assignedToName: HARDCODED_USERS.find(u => u.id === assignedToId)?.id || assignedToId,
+                    assignedById: currentUser.id,
+                    assignedByName: currentUser.id,
+                    taskImage: imageUrl, // Storing URL from Storage
+                    createdAt: serverTimestamp(),
+                    logs: [{
+                        userId: currentUser.id,
+                        role: currentUser.role,
+                        update: `Task assigned to ${assignedToId}. ${imageUrl ? 'Image uploaded and linked via Cloud Storage.' : ''}`,
+                        timestamp: new Date().getTime() 
+                    }]
+                };
+                
+                // 4. Set the document with the predetermined ID
+                await setDoc(tempDocRef, newTask);
+                
+                showMessage("Task assigned successfully! Image is linked via URL.", 'success', 'modalMessage');
+                closeModal();
+            } catch (error) {
+                console.error("Error adding task: ", error);
+                showMessage(`Error: ${error.message}`, 'error', 'modalMessage');
+                showLoading(false);
+            }
+        };
+
+        // User/Admin updates task details (log and status)
+        const updateTask = async (taskId, updateText, newStatus) => {
+            if (!currentUser) return;
+            const taskRef = doc(getTasksCollectionRef(), taskId);
+            const taskToUpdate = allTasks.find(t => t.id === taskId);
+            
+            if (!taskToUpdate) return showMessage('Task not found.', 'error', 'modalMessage');
+
+            const newLog = {
+                userId: currentUser.id,
+                role: currentUser.role,
+                update: updateText,
+                timestamp: new Date().getTime()
+            };
+            
+            const updateObj = {
+                logs: [...(taskToUpdate.logs || []), newLog]
+            };
+
+            if (newStatus && newStatus !== taskToUpdate.status) {
+                updateObj.status = newStatus;
+                newLog.update += ` (Status changed to ${newStatus.replace('_', ' ').toUpperCase()})`;
+            }
 
             try {
-                // **Simulated Fix:** The data object below has correct comma separation.
-                // If there was an error like "task: description assignedBy: userId",
-                // 'assignedBy' would be the 'Unexpected identifier'.
-                await addDoc(tasksRef, {
-                    task: description,
-                    isComplete: false,
-                    assignedBy: userId, // Correctly placed after a comma
-                    createdAt: serverTimestamp()
+                await updateDoc(taskRef, updateObj);
+                showMessage("Task updated successfully!", 'success', 'modalMessage');
+            } catch (error) {
+                console.error("Error updating task: ", error);
+                showMessage(`Error updating task: ${error.message}`, 'error', 'modalMessage');
+            }
+        };
+        
+        const adminConfirmCompletion = async (taskId, confirmed) => {
+            if (currentRole !== 'admin') return;
+            const taskRef = doc(getTasksCollectionRef(), taskId);
+            const newStatus = confirmed ? 'admin_completed' : 'under_progress';
+            const logMessage = confirmed ? 'Admin confirmed completion.' : 'Admin rejected completion, reverting to Under Progress.';
+
+            const taskToUpdate = allTasks.find(t => t.id === taskId);
+            if (!taskToUpdate) return;
+            
+            const newLog = {
+                userId: currentUser.id,
+                role: currentUser.role,
+                update: logMessage,
+                timestamp: new Date().getTime()
+            };
+
+            try {
+                await updateDoc(taskRef, {
+                    status: newStatus,
+                    logs: [...(taskToUpdate.logs || []), newLog]
                 });
-                taskInput.value = '';
-                showMessage("Task added successfully!", 'success');
             } catch (error) {
-                console.error("Error adding document: ", error);
-                showMessage(`Error adding task: ${error.message}`, 'error');
+                console.error("Error confirming completion:", error);
             }
         };
 
-        const toggleTaskComplete = async (taskId, isComplete) => {
-            if (!isAuthReady || !db) return;
-            const docRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
-            try {
-                await updateDoc(docRef, {
-                    isComplete: !isComplete
+        // --- UI RENDERING & LOGIC ---
+        
+        const filterAndSearchTasks = () => {
+            let filtered = allTasks;
+            const search = searchTerm.toLowerCase();
+            
+            if (currentRole === 'user') {
+                filtered = filtered.filter(task => task.assignedToId === currentUser.id);
+            }
+
+            if (activeTab === 'running') {
+                filtered = filtered.filter(task => task.status !== 'admin_completed');
+            } else if (activeTab === 'completed') {
+                filtered = filtered.filter(task => task.status === 'admin_completed');
+            }
+            
+            if (search) {
+                filtered = filtered.filter(task => {
+                    const taskName = task.name.toLowerCase();
+                    const description = task.description?.toLowerCase() || '';
+                    const logs = task.logs ? task.logs.map(log => log.update.toLowerCase()).join(' ') : '';
+                    
+                    return taskName.includes(search) || description.includes(search) || logs.includes(search);
                 });
-            } catch (error) {
-                console.error("Error updating document: ", error);
-                showMessage(`Error updating task: ${error.message}`, 'error');
+            }
+            
+            return filtered;
+        };
+
+        const renderApp = () => {
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                const isActive = tab.dataset.tab === activeTab;
+                tab.classList.toggle('text-purple-600', isActive);
+                tab.classList.toggle('text-gray-500', !isActive);
+                tab.classList.toggle('font-semibold', isActive);
+                
+                if (isActive) {
+                    taskHeader.textContent = activeTab === 'running' ? 'Tasks in Hand (Under Progress)' : 'Completed Tasks';
+                }
+            });
+
+            if (activeTab === 'assign' && currentRole === 'admin') {
+                renderAssignmentView();
+            } else {
+                renderTaskListView();
             }
         };
 
-        const deleteTask = async (taskId) => {
-            if (!isAuthReady || !db) return;
-            const docRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
-            try {
-                await deleteDoc(docRef);
-            } catch (error) {
-                console.error("Error deleting document: ", error);
-                showMessage(`Error deleting task: ${error.message}`, 'error');
-            }
-        };
-
-        // --- UI Rendering and Event Handlers ---
-
-        const renderTasks = (tasks) => {
+        const renderTaskListView = () => {
             taskList.innerHTML = '';
-            document.getElementById('loadingMessage')?.remove();
+            
+            const tasks = filterAndSearchTasks();
 
             if (tasks.length === 0) {
-                taskList.innerHTML = '<p class="text-center text-gray-500 p-4 border border-dashed rounded-lg bg-gray-50">No tasks on the board. Add one!</p>';
+                taskList.innerHTML = `<p class="text-center text-gray-500 p-4 border border-dashed rounded-lg bg-gray-50">
+                    No tasks found for your selection in the ${activeTab} tab.
+                </p>`;
                 return;
             }
 
             tasks.forEach(task => {
-                const taskItem = document.createElement('div');
-                const isCompleted = task.isComplete;
-                const completedClass = isCompleted ? 'bg-green-50 border-green-300' : 'bg-white hover:bg-gray-50 border-gray-200';
-                const textClass = isCompleted ? 'line-through text-gray-400' : 'text-gray-800';
+                let statusColor = 'bg-white border-gray-200';
+                let actionIcon = '';
+                
+                if (task.status === 'user_completed') {
+                    statusColor = 'bg-green-100 border-green-400'; 
+                    actionIcon = currentRole === 'admin' ? renderAdminConfirmButton(task) : '';
+                } else if (task.status === 'admin_completed') {
+                    statusColor = 'bg-purple-50 border-purple-300';
+                } else {
+                    statusColor = 'bg-white border-gray-200';
+                }
 
-                taskItem.className = `flex items-start justify-between p-4 rounded-lg border-2 transition duration-150 ${completedClass}`;
+                const assignedUser = task.assignedToName || task.assignedToId;
+                const isAssignedToMe = task.assignedToId === currentUser.id;
+                
+                const showEdit = currentRole === 'admin' || (isAssignedToMe && task.status !== 'admin_completed');
+                
+                // Use the URL from Firebase Storage
+                const imageHtml = task.taskImage ? `<img src="${task.taskImage}" class="h-10 w-10 object-cover rounded-md mr-3 flex-shrink-0 border border-gray-200" alt="Task Thumbnail">` : '';
+                
+                const taskItem = document.createElement('div');
+                taskItem.className = `task-card flex flex-col md:flex-row items-center justify-between p-4 rounded-xl transition duration-150 ${statusColor}`;
                 taskItem.innerHTML = `
-                    <div class="flex-grow min-w-0 mr-4">
-                        <p class="font-medium text-lg break-words ${textClass}">${task.task}</p>
-                        <p class="text-xs text-gray-500 mt-1">
-                            Added by: <span class="font-mono text-xs">${task.assignedBy.substring(0, 8)}...</span>
-                            ${task.createdAt ? ' | ' + new Date(task.createdAt.seconds * 1000).toLocaleDateString() : ''}
-                        </p>
+                    <div class="flex-grow min-w-0 mr-4 w-full md:w-auto mb-3 md:mb-0 flex items-start">
+                        ${imageHtml}
+                        <div>
+                            <h3 class="font-bold text-xl text-gray-800 break-words">${task.name}
+                                <span class="text-xs font-medium px-2 py-0.5 rounded-full ${task.status === 'admin_completed' ? 'bg-purple-200 text-purple-800' : 'bg-yellow-200 text-yellow-800'}">
+                                    ${task.status.replace('_', ' ').toUpperCase()}
+                                </span>
+                            </h3>
+                            <p class="text-sm text-gray-600 mt-1">${task.description}</p>
+                            <p class="text-xs text-gray-500 mt-2">
+                                Assigned to: <span class="font-medium">${assignedUser}</span> 
+                                by <span class="font-medium">${task.assignedByName}</span> 
+                                on ${formatTimestamp(task.createdAt)}
+                            </p>
+                        </div>
                     </div>
                     <div class="flex space-x-2 flex-shrink-0">
-                        <button data-id="${task.id}" data-complete="${isCompleted}" class="toggle-btn p-2 rounded-full transition duration-150 ${isCompleted ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-yellow-500 hover:bg-yellow-600 text-white'}" title="${isCompleted ? 'Mark Pending' : 'Mark Complete'}">
+                        ${actionIcon}
+                        ${showEdit ? `<button data-id="${task.id}" class="edit-btn p-2 rounded-full bg-purple-500 hover:bg-purple-600 text-white transition duration-150" title="Edit Task Log/Status">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                ${isCompleted ? '<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 14.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />' : '<path d="M5 3v4M3 5h4M17 13v4m-4 0h4M8 15h3m-3 0h.01M5 12h2l3 3 5-5m1-2a2 2 0 11-4 0 2 2 0 014 0zM12 9a2 2 0 100-4 2 2 0 000 4z" />'}
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793l-2.828-2.828l.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379l-2.83-2.828z" />
                             </svg>
-                        </button>
-                        <button data-id="${task.id}" class="delete-btn p-2 rounded-full bg-red-500 hover:bg-red-600 text-white transition duration-150" title="Delete Task">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </button>` : ''}
+                        
+                        <button data-id="${task.id}" class="view-log-btn p-2 rounded-full bg-gray-500 hover:bg-gray-600 text-white transition duration-150" title="View Full Log">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7" />
                             </svg>
                         </button>
                     </div>
                 `;
                 taskList.appendChild(taskItem);
             });
+            attachTaskListeners();
+        };
 
-            // Re-attach event listeners after rendering
-            document.querySelectorAll('.toggle-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const id = e.currentTarget.dataset.id;
-                    const isComplete = e.currentTarget.dataset.complete === 'true';
-                    toggleTaskComplete(id, isComplete);
-                });
+        const renderAdminConfirmButton = (task) => {
+            return `
+                <div class="flex space-x-2">
+                    <button data-id="${task.id}" data-confirm="yes" class="admin-confirm-btn p-2 rounded-full bg-green-600 hover:bg-green-700 text-white transition duration-150" title="Admin Confirm Completion: YES">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 14.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                    </button>
+                    <button data-id="${task.id}" data-confirm="no" class="admin-confirm-btn p-2 rounded-full bg-red-600 hover:bg-red-700 text-white transition duration-150" title="Admin Reject Completion: NO">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10L4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                    </button>
+                </div>
+            `;
+        };
+        
+        const renderAssignmentView = () => {
+            if (currentRole !== 'admin') return renderTaskListView();
+            
+            taskList.innerHTML = '';
+            taskHeader.textContent = 'Assign New Task';
+            
+            const assignableUsers = HARDCODED_USERS.filter(u => u.role === 'user');
+            
+            newAssignmentImageFile = null; // Reset image state
+
+            taskList.innerHTML = `
+                <div class="p-6 task-card bg-white rounded-xl space-y-4">
+                    <input type="text" id="assignTaskName" placeholder="Task Name (required)"
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500">
+                    <textarea id="assignTaskDesc" placeholder="Task Description (required)" rows="3"
+                              class="w-full p-3 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"></textarea>
+                    
+                    <label class="block text-sm font-medium text-gray-700 pt-2">Task Image (Max ${MAX_FILE_SIZE / 1024 / 1024} MB, uploaded to Storage)</label>
+                    
+                    <!-- New explicit camera and gallery buttons -->
+                    <div class="flex space-x-4 mb-3">
+                        <!-- Camera Button -->
+                        <button id="captureImageBtn" type="button" class="flex-1 p-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition duration-150 active:scale-95 flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 6.293a1 1 0 01-.707.293H4zm7 8a3 3 0 11-6 0 3 3 0 016 0z" clip-rule="evenodd" /></svg>
+                            Capture Photo
+                        </button>
+                        <!-- Gallery/Upload Button -->
+                        <button id="uploadImageBtn" type="button" class="flex-1 p-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition duration-150 active:scale-95 flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 11.586V4a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            Upload from Gallery
+                        </button>
+                    </div>
+                    
+                    <!-- Hidden inputs for file selection -->
+                    <input type="file" id="cameraImageInput" accept="image/*" capture="camera" class="hidden">
+                    <input type="file" id="galleryImageInput" accept="image/*" class="hidden">
+                    
+                    <div id="imagePreview" class="mt-2 flex justify-center items-center h-20 w-full bg-gray-50 rounded-lg border border-dashed text-gray-400">Image Preview (Current Image: None)</div>
+                    
+                    <select id="assignToUser" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500">
+                        <option value="">-- Assign To User --</option>
+                        ${assignableUsers.map(u => `<option value="${u.id}">${u.id}</option>`).join('')}
+                    </select>
+                    <button id="submitAssignment" class="w-full bg-green-600 text-white font-semibold py-3 rounded-lg hover:bg-green-700 transition duration-150 active:scale-95">
+                        Create & Assign Task
+                    </button>
+                    <p id="modalMessage" class="text-sm mt-4 text-center"></p>
+                </div>
+            `;
+            
+            const cameraInput = document.getElementById('cameraImageInput');
+            const galleryInput = document.getElementById('galleryImageInput');
+            const preview = document.getElementById('imagePreview');
+            const submitBtn = document.getElementById('submitAssignment');
+            
+            // Function to handle file selection and preview update
+            const handleImageSelection = (file) => {
+                if (!file) {
+                    preview.innerHTML = `Image Preview (Current Image: None)`;
+                    newAssignmentImageFile = null;
+                    return;
+                }
+                
+                if (file.size > MAX_FILE_SIZE) {
+                    newAssignmentImageFile = null;
+                    preview.innerHTML = `<span class="text-red-500">Error: File too large. Max ${MAX_FILE_SIZE / 1024 / 1024} MB.</span>`;
+                    showMessage(`File too large (${(file.size / 1024 / 1024).toFixed(2)} MB). Max ${MAX_FILE_SIZE / 1024 / 1024} MB allowed.`, 'error', 'modalMessage');
+                    return;
+                }
+
+                try {
+                    const previewURL = fileToPreviewURL(file);
+                    newAssignmentImageFile = file; // Store the actual File object
+                    preview.innerHTML = `<img src="${previewURL}" class="h-full w-auto object-contain rounded-md" onerror="this.onerror=null; this.src='https://placehold.co/100x20/ef4444/ffffff?text=Load+Error'">`;
+                    showMessage(`Image selected. Size: ${(file.size / 1024 / 1024).toFixed(2)} MB.`, 'success', 'modalMessage');
+
+                } catch (error) {
+                    newAssignmentImageFile = null;
+                    preview.innerHTML = `<span class="text-red-500">Error: ${error.message}</span>`;
+                    console.error("Image handling error:", error);
+                    showMessage(`Image Error: ${error.message || error}`, 'error', 'modalMessage');
+                }
+            };
+            
+            // Event listeners to trigger file inputs
+            document.getElementById('captureImageBtn').addEventListener('click', () => {
+                cameraInput.click();
+            });
+            document.getElementById('uploadImageBtn').addEventListener('click', () => {
+                galleryInput.click();
             });
 
-            document.querySelectorAll('.delete-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    deleteTask(e.currentTarget.dataset.id);
+            // Event listeners to process file selection
+            cameraInput.addEventListener('change', (e) => {
+                handleImageSelection(e.target.files[0]);
+                e.target.value = null; 
+            });
+            galleryInput.addEventListener('change', (e) => {
+                handleImageSelection(e.target.files[0]);
+                e.target.value = null; 
+            });
+
+
+            submitBtn.addEventListener('click', async () => {
+                const name = document.getElementById('assignTaskName').value.trim();
+                const desc = document.getElementById('assignTaskDesc').value.trim();
+                const assignedToId = document.getElementById('assignToUser').value;
+                
+                if (!name || !desc || !assignedToId) {
+                    return showMessage('Task Name, Description, and Assigned User are required.', 'error', 'modalMessage');
+                }
+                
+                // Use the globally stored newAssignmentImageFile
+                addTask(name, desc, assignedToId, newAssignmentImageFile);
+            });
+        };
+        
+        const renderEditTaskModal = (task) => {
+            const isUser = currentRole === 'user';
+            const isAssigned = task.assignedToId === currentUser.id;
+            
+            const logsHtml = (task.logs || []).map(log => {
+                const isUserLog = log.role === 'user';
+                const logClass = isUserLog ? 'log-user' : 'log-admin';
+                const alignClass = isUserLog ? 'justify-start' : 'justify-end';
+                const profileIcon = isUserLog ? '🧑' : '👑';
+                const timestampText = log.timestamp ? formatTimestamp(log.timestamp) : 'N/A';
+                
+                return `
+                    <div class="flex ${alignClass} w-full">
+                        <div class="max-w-[80%] p-3 rounded-xl shadow-sm ${logClass} flex items-start space-x-3">
+                            <div class="flex-shrink-0">
+                                <div class="h-10 w-10 bg-gray-300 rounded-full flex items-center justify-center text-lg">${profileIcon}</div>
+                            </div>
+                            <div class="flex-grow ${isUserLog ? 'text-left' : 'text-right'}">
+                                <div class="text-xs font-medium ${isUserLog ? 'text-blue-700' : 'text-red-700'} mb-1 flex ${isUserLog ? 'justify-start' : 'justify-end'}">
+                                    ${log.userId} (${log.role.toUpperCase()})
+                                </div>
+                                <p class="text-gray-800 break-words ${isUserLog ? 'text-left' : 'text-right'}">${log.update}</p>
+                                <p class="text-[10px] text-gray-500 mt-1">${timestampText}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            const modalTitle = currentRole === 'admin' ? `Edit Task: ${task.name}` : `Update Task: ${task.name}`;
+            
+            const statusOptions = `
+                <select id="newStatusSelect" class="w-full p-3 border border-gray-300 rounded-lg">
+                    <option value="under_progress" ${task.status === 'under_progress' ? 'selected' : ''}>Under Progress</option>
+                    ${isUser && isAssigned ? 
+                        `<option value="user_completed" ${task.status === 'user_completed' ? 'selected' : ''}>Mark Completed (Request Admin Approval)</option>` : ''}
+                    ${currentRole === 'admin' ?
+                        `<option value="admin_completed" ${task.status === 'admin_completed' ? 'selected' : ''}>Admin Complete</option>` : ''}
+                </select>
+            `;
+
+            const imageLinkHtml = task.taskImage ? `
+                <div class="text-xs mt-1 text-gray-500">
+                    <a href="${task.taskImage}" target="_blank" class="text-purple-500 hover:underline">View Full Size Image (Linked via Storage)</a>
+                </div>
+            ` : '';
+            
+            const modalHTML = `
+                <div class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center p-4 z-50">
+                    <div class="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto task-card">
+                        <div class="p-6 border-b flex justify-between items-center">
+                            <h3 class="text-2xl font-bold text-gray-800">${modalTitle}</h3>
+                            <button class="close-modal text-gray-500 hover:text-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        
+                        <div class="p-6">
+                            <!-- Task Image Thumbnail (uses storage URL) -->
+                            ${task.taskImage ? `<div class="mb-4 text-center">
+                                <img src="${task.taskImage}" class="h-32 w-auto object-contain mx-auto border-2 rounded-lg" alt="Task Image Reference" onerror="this.onerror=null; this.src='https://placehold.co/100x100/f87171/ffffff?text=Image+Not+Found'">
+                                ${imageLinkHtml}
+                            </div>` : ''}
+
+                            <!-- Task Details -->
+                            <div class="mb-6">
+                                <p class="text-sm font-semibold">Description:</p>
+                                <p class="text-lg text-gray-700 border-l-4 border-purple-400 pl-3 italic">${task.description}</p>
+                            </div>
+                            
+                            <!-- Log Conversation -->
+                            <h4 class="text-xl font-semibold mb-3 text-gray-700">Task Log</h4>
+                            <div class="bg-gray-50 p-4 rounded-lg h-60 overflow-y-auto space-y-3 mb-6">
+                                ${logsHtml || '<p class="text-center text-gray-500">No conversation logs yet.</p>'}
+                            </div>
+
+                            <!-- Update Form -->
+                            <h4 class="text-xl font-semibold mb-3 text-gray-700">Add Update</h4>
+                            <textarea id="updateTextarea" placeholder="${isUser ? 'Write your progress description here...' : 'Admin log/description update...'}" rows="3"
+                                      class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-purple-500 focus:border-purple-500"></textarea>
+                                      
+                            <div class="flex gap-4 items-center mb-4">
+                                <label for="newStatusSelect" class="font-medium text-gray-700">Change Status:</label>
+                                ${statusOptions}
+                            </div>
+                            
+                            <button id="submitUpdateBtn" data-task-id="${task.id}" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition duration-150 active:scale-95">
+                                Submit Update & Log
+                            </button>
+                            <p id="modalMessage" class="text-sm mt-4 text-center"></p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modalContainer.innerHTML = modalHTML;
+            document.querySelector('.close-modal').addEventListener('click', closeModal);
+            
+            document.getElementById('submitUpdateBtn').addEventListener('click', () => {
+                const taskId = document.getElementById('submitUpdateBtn').dataset.taskId;
+                const updateText = document.getElementById('updateTextarea').value.trim();
+                const newStatus = document.getElementById('newStatusSelect').value;
+
+                if (!updateText) {
+                    return showMessage('Please write a progress update/log entry.', 'error', 'modalMessage');
+                }
+                
+                updateTask(taskId, updateText, newStatus);
+            });
+        };
+        
+        const closeModal = () => {
+            modalContainer.innerHTML = '';
+            renderApp(); 
+        };
+
+        // --- EVENT ATTACHMENTS ---
+
+        const attachTaskListeners = () => {
+            document.querySelectorAll('.edit-btn, .view-log-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const taskId = e.currentTarget.dataset.id;
+                    const task = allTasks.find(t => t.id === taskId);
+                    if (task) renderEditTaskModal(task);
+                });
+            });
+            
+            document.querySelectorAll('.admin-confirm-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const taskId = e.currentTarget.dataset.id;
+                    const confirmAction = e.currentTarget.dataset.confirm === 'yes';
+                    adminConfirmCompletion(taskId, confirmAction);
                 });
             });
         };
+        
+        const attachGlobalListeners = () => {
+            document.getElementById('loginBtn').addEventListener('click', () => {
+                const id = document.getElementById('loginId').value.trim();
+                const password = document.getElementById('loginPassword').value.trim();
+                handleLogin(id, password);
+            });
+            document.getElementById('loginPassword').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') document.getElementById('loginBtn').click();
+            });
+            
+            logoutBtn.addEventListener('click', handleLogout);
 
-        // Initialize on window load
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    activeTab = e.currentTarget.dataset.tab;
+                    renderApp();
+                });
+            });
+            
+            searchInput.addEventListener('input', (e) => {
+                searchTerm = e.target.value.trim();
+                renderApp();
+            });
+        };
+
+
+        // --- MAIN EXECUTION ---
         window.onload = () => {
             initializeFirebase();
-
-            addTaskBtn.addEventListener('click', () => {
-                const task = taskInput.value.trim();
-                if (task) {
-                    addTask(task);
-                } else {
-                    showMessage("Task description cannot be empty.", 'error');
-                }
-            });
-
-            taskInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    addTaskBtn.click();
-                }
-            });
+            attachGlobalListeners();
         };
+
     </script>
 </body>
 </html>
