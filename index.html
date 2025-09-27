@@ -1,40 +1,659 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Task App</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriveTask Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .container-app {
+            max-width: 900px;
+            min-height: 100vh;
+            margin: auto;
+            background-color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .log-bubble-right {
+            background-color: #DCF8C6; /* WhatsApp Green */
+            align-self: flex-end;
+            border-radius: 12px 12px 0 12px;
+        }
+        .log-bubble-left {
+            background-color: #F0F0F0; /* WhatsApp Grey */
+            align-self: flex-start;
+            border-radius: 12px 12px 12px 0;
+        }
+        .task-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-  <h2>Login</h2>
-  <input type="email" id="email" placeholder="Email">
-  <input type="password" id="password" placeholder="Password">
-  <button onclick="handleLogin()">Login</button>
 
-  <h3>Tasks</h3>
-  <ul id="taskList"></ul>
+<div id="app" class="container-app">
+    <!-- Main content will be rendered here -->
+</div>
 
 <script>
-const WORKER_URL = 'https://YOUR_WORKER_URL'; // replace with your Worker URL
+    // --- GLOBAL CONFIGURATION ---
 
-async function handleLogin(){
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
-  
-  const response = await fetch(`${WORKER_URL}/?action=getTasks&email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`);
-  const data = await response.json();
+    // !!! IMPORTANT: REPLACE THIS URL with your Cloudflare Worker URL (e.g., https://my-task-proxy.workers.dev)
+    const WORKER_URL = 'https://task-nilesh.arkindiacare.workers.dev/';
+    
+    // --- APP STATE ---
 
-  if(data.success){
-    const list = document.getElementById('taskList');
-    list.innerHTML='';
-    data.tasks.forEach(t=>{
-      const li = document.createElement('li');
-      li.textContent=`[${t.Status}] ${t.Title} - Assigned to: ${t.Assigned_To}`;
-      list.appendChild(li);
+    let state = {
+        view: 'loading', // 'login', 'admin', 'user', 'taskDetail', 'taskLog'
+        userId: localStorage.getItem('app_user_id') || null,
+        userRole: localStorage.getItem('app_user_role') || null,
+        token: localStorage.getItem('app_token') || null,
+        tasks: [],
+        users: [],
+        currentTask: null,
+        currentLogs: [],
+        loading: false,
+        message: null,
+        searchQuery: ''
+    };
+
+    // --- UTILITIES ---
+
+    /**
+     * Shows a temporary message banner.
+     */
+    function showMessage(text, isError = false) {
+        state.message = { text, isError };
+        render();
+        setTimeout(() => {
+            state.message = null;
+            render();
+        }, 4000);
+    }
+
+    /**
+     * Converts a file to a Base64 string.
+     */
+    function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+    }
+
+    // --- API HANDLER ---
+
+    /**
+     * Sends a request to the Apps Script API via the Cloudflare Worker.
+     */
+    async function apiCall(action, data = {}) {
+        state.loading = true;
+        render();
+
+        const payload = { action, userId: state.userId, role: state.userRole, ...data };
+        
+        try {
+            const response = await fetch(WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                // Try to parse error message if available
+                const errorData = await response.json().catch(() => ({ message: `HTTP error! Status: ${response.status}` }));
+                throw new Error(errorData.message || `HTTP error! Status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.message || 'API call failed.');
+            }
+            return result;
+
+        } catch (error) {
+            console.error("API Call Error:", error);
+            showMessage(`Request failed: ${error.message}`, true);
+            return { success: false, message: error.message };
+        } finally {
+            state.loading = false;
+            render();
+        }
+    }
+
+    // --- AUTH & NAVIGATION ---
+
+    function saveSession(userId, role, token) {
+        localStorage.setItem('app_user_id', userId);
+        localStorage.setItem('app_user_role', role);
+        localStorage.setItem('app_token', token);
+        state.userId = userId;
+        state.userRole = role;
+        state.token = token;
+        state.view = role;
+        loadInitialData();
+    }
+
+    function logout() {
+        localStorage.removeItem('app_user_id');
+        localStorage.removeItem('app_user_role');
+        localStorage.removeItem('app_token');
+        state.userId = null;
+        state.userRole = null;
+        state.token = null;
+        state.view = 'login';
+        state.currentTask = null;
+        state.tasks = [];
+        render();
+    }
+
+    function navigateTo(view, data = null) {
+        state.view = view;
+        if (view === 'taskDetail' && data) {
+            state.currentTask = data;
+            loadTaskLogs(data.id);
+        } else if (view === 'admin' || view === 'user') {
+            loadInitialData();
+        }
+        render();
+    }
+
+    // --- DATA FETCHERS ---
+
+    async function loadInitialData() {
+        if (!state.token) {
+            state.view = 'login';
+            return;
+        }
+
+        const taskResult = await apiCall('getTasks', { userId: state.userId, role: state.userRole });
+        if (taskResult.success) {
+            state.tasks = taskResult.tasks;
+        }
+
+        if (state.userRole === 'master') {
+            const userResult = await apiCall('getUsers', { role: state.userRole });
+            if (userResult.success) {
+                state.users = userResult.users;
+            }
+        }
+        state.view = state.userRole;
+        render();
+    }
+
+    async function loadTaskLogs(taskId) {
+        const logResult = await apiCall('getLogs', { taskId });
+        if (logResult.success) {
+            state.currentLogs = logResult.logs;
+            render();
+        }
+    }
+
+    // --- FORM HANDLERS ---
+
+    async function handleLogin(e) {
+        e.preventDefault();
+        const id = document.getElementById('loginId').value.trim();
+        const password = document.getElementById('loginPassword').value.trim();
+        
+        if (!id || !password) {
+            return showMessage("Please enter both ID and Password.", true);
+        }
+
+        const result = await apiCall('login', { id, password });
+        if (result.success) {
+            saveSession(result.userId, result.role, result.token);
+            showMessage(`Welcome, ${result.userId}!`);
+        }
+    }
+    
+    async function handleAddUser(e) {
+        e.preventDefault();
+        const id = document.getElementById('newUserId').value.trim();
+        const password = document.getElementById('newUserPassword').value.trim();
+
+        if (!id || !password) {
+            return showMessage("ID and Password are required.", true);
+        }
+        
+        // MVP: Add a new user directly (needs GAS function to be written, assuming simple `assignTask` flow for now)
+        // Since we didn't include the 'addUser' function in the GAS MVP to save time,
+        // we'll instruct the user to manually add the user to the sheet for the prototype.
+        showMessage("For the prototype, please add the user/password manually to the 'Users' sheet.", false);
+        document.getElementById('newUserId').value = '';
+        document.getElementById('newUserPassword').value = '';
+    }
+
+    async function handleAssignTask(e) {
+        e.preventDefault();
+        const form = e.target;
+        const taskName = form.taskName.value.trim();
+        const description = form.description.value.trim();
+        const assigneeId = form.assignee.value;
+        const date = form.taskDate.value;
+
+        if (!taskName || !description || !assigneeId || !date) {
+            return showMessage("All fields are required.", true);
+        }
+
+        const result = await apiCall('assignTask', { 
+            taskName, description, assigneeId, date
+        });
+
+        if (result.success) {
+            showMessage(result.message);
+            form.reset();
+            loadInitialData(); // Refresh tasks list
+        }
+    }
+    
+    async function handleUpdateStatus(e) {
+        e.preventDefault();
+        const form = e.target;
+        const status = form.taskStatus.value;
+        const description = form.logDescription.value.trim();
+        const imageFile = form.imageAttachment.files[0];
+        const taskId = state.currentTask.id;
+        let base64Image = null;
+
+        if (imageFile) {
+            if (imageFile.size > 1024 * 1024 * 5) { // 5MB limit
+                return showMessage("Image size must be less than 5MB.", true);
+            }
+            base64Image = await fileToBase64(imageFile);
+        }
+
+        const result = await apiCall('updateStatus', {
+            taskId, status, description, base64Image
+        });
+
+        if (result.success) {
+            showMessage(result.message);
+            form.reset();
+            loadTaskLogs(taskId);
+            // After updating status, navigate back to refresh the main list
+            navigateTo(state.userRole);
+        }
+    }
+    
+    async function handleOverrideStatus(taskId, finalStatus) {
+        const result = await apiCall('overrideStatus', {
+            taskId,
+            newStatus: finalStatus === 'yes' ? 'Completed' : 'Under Progress'
+        });
+        
+        if (result.success) {
+            showMessage(result.message);
+            // Reload logs and tasks to see the change
+            loadTaskLogs(taskId);
+            loadInitialData();
+            // Go back to the main view if it was marked completed
+            if (finalStatus === 'yes') {
+                 navigateTo(state.userRole);
+            }
+        }
+    }
+
+    // --- RENDER FUNCTIONS ---
+
+    function renderMessage() {
+        if (!state.message) return '';
+        const bgColor = state.message.isError ? 'bg-red-100 border-red-400 text-red-700' : 'bg-green-100 border-green-400 text-green-700';
+        return `
+            <div class="fixed top-0 left-0 right-0 p-4 z-50 transition-opacity duration-300">
+                <div class="${bgColor} border px-4 py-3 rounded relative" role="alert">
+                    <strong class="font-bold">${state.message.isError ? 'Error: ' : 'Success: '}</strong>
+                    <span class="block sm:inline">${state.message.text}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderLoader() {
+        if (!state.loading) return '';
+        return `
+            <div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+                <div class="p-4 bg-white rounded-lg shadow-xl flex items-center space-x-3">
+                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500"></div>
+                    <span class="text-indigo-600 font-medium">Loading...</span>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderHeader(title) {
+        return `
+            <header class="p-4 bg-indigo-600 text-white shadow-lg sticky top-0 z-10">
+                <div class="flex justify-between items-center">
+                    <h1 class="text-2xl font-bold">${title}</h1>
+                    ${state.userId ? `
+                        <div class="flex items-center space-x-4">
+                            <span class="text-sm">User: <strong class="font-mono bg-indigo-700 px-2 py-1 rounded-full">${state.userId}</strong></span>
+                            <button onclick="logout()" class="text-sm bg-red-500 hover:bg-red-600 px-3 py-1 rounded-full transition duration-150">Logout</button>
+                        </div>
+                    ` : ''}
+                </div>
+            </header>
+        `;
+    }
+
+    function renderLogin() {
+        return `
+            ${renderHeader('DriveTask Login')}
+            <div class="p-8 flex flex-col items-center justify-center min-h-[calc(100vh-6rem)]">
+                <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl border border-gray-200">
+                    <h2 class="text-3xl font-extrabold text-gray-900 mb-6 text-center">Sign In</h2>
+                    <form onsubmit="handleLogin(event)">
+                        <div class="space-y-4">
+                            <div>
+                                <label for="loginId" class="block text-sm font-medium text-gray-700">User ID (e.g., admin or user1)</label>
+                                <input id="loginId" type="text" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label for="loginPassword" class="block text-sm font-medium text-gray-700">Password (e.g., 123456)</label>
+                                <input id="loginPassword" type="password" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150">
+                                Login
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderTaskDetail() {
+        if (!state.currentTask) return renderNotFound();
+        
+        const { id, date, name, description, assignedTo, status } = state.currentTask;
+
+        // Determine if log is user (right) or other/admin (left)
+        const renderLogItem = (log) => {
+            const isSelf = log.userId === state.userId;
+            const bubbleClass = isSelf ? 'log-bubble-right' : 'log-bubble-left';
+            const alignClass = isSelf ? 'justify-end' : 'justify-start';
+
+            return `
+                <div class="flex ${alignClass} mb-3">
+                    <div class="p-3 max-w-xs sm:max-w-md ${bubbleClass} shadow">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold text-xs ${isSelf ? 'text-indigo-800' : 'text-gray-800'}">${isSelf ? 'You' : log.userId}</span>
+                            <span class="text-xs text-gray-500 ml-3">${log.timestamp}</span>
+                        </div>
+                        <p class="text-sm mb-1">${log.description}</p>
+                        ${log.imageUrl ? `
+                            <a href="${log.imageUrl}" target="_blank" class="block mt-2">
+                                <img src="${log.imageUrl}" alt="Log image" class="rounded-lg max-h-40 w-full object-cover border border-gray-300">
+                            </a>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        };
+        
+        const isMaster = state.userRole === 'master';
+        const isCompleted = status === 'Completed' || status === 'Not Completed';
+
+        // Admin Override Buttons
+        const adminOverride = isMaster && isCompleted ? `
+            <div class="mt-6 p-4 border border-yellow-300 bg-yellow-50 rounded-lg">
+                <p class="font-semibold text-yellow-800 mb-2">Admin Final Job Status:</p>
+                <div class="flex space-x-4">
+                    <button onclick="handleOverrideStatus('${id}', 'yes')" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition duration-150">
+                        Mark Final: YES (Completed)
+                    </button>
+                    <button onclick="handleOverrideStatus('${id}', 'no')" 
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg shadow hover:bg-red-700 transition duration-150">
+                        Mark Final: NO (Under Progress)
+                    </button>
+                </div>
+            </div>
+        ` : '';
+
+        // Status Update Form (Only for assigned user or if not fully completed)
+        const statusUpdateForm = !isMaster && status === 'Under Progress' ? `
+            <div class="p-4 bg-gray-50 rounded-lg mt-6 shadow-inner">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">Update Task Status</h3>
+                <form onsubmit="handleUpdateStatus(event)">
+                    <input type="hidden" name="taskId" value="${id}">
+                    <div class="mb-4">
+                        <label for="taskStatus" class="block text-sm font-medium text-gray-700">New Status</label>
+                        <select id="taskStatus" name="taskStatus" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="Under Progress">Under Progress</option>
+                            <option value="Completed">Completed (Pending Admin Final Review)</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="logDescription" class="block text-sm font-medium text-gray-700">Description/Update Log</label>
+                        <textarea id="logDescription" name="logDescription" rows="3" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label for="imageAttachment" class="block text-sm font-medium text-gray-700">Attach Photo (Max 5MB)</label>
+                        <input id="imageAttachment" name="imageAttachment" type="file" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                    </div>
+                    <button type="submit" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150">
+                        Post Status Update
+                    </button>
+                </form>
+            </div>
+        ` : '';
+
+        return `
+            ${renderHeader('Task Detail & Log')}
+            <div class="p-4 sm:p-8">
+                <button onclick="navigateTo('${state.userRole}')" class="mb-4 text-indigo-600 hover:text-indigo-800 font-semibold flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Back to Task List
+                </button>
+                
+                <!-- Task Details Panel -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-indigo-500 mb-6">
+                    <div class="flex justify-between items-start mb-4">
+                        <h2 class="text-2xl font-bold text-gray-800">${name}</h2>
+                        <span class="px-3 py-1 text-xs font-semibold rounded-full ${status === 'Under Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                            ${status}
+                        </span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2"><strong>Date:</strong> ${date}</p>
+                    <p class="text-sm text-gray-600 mb-4"><strong>Assigned To:</strong> ${assignedTo}</p>
+                    <p class="text-gray-700 whitespace-pre-wrap">${description}</p>
+                </div>
+                
+                ${adminOverride}
+
+                <!-- Continuous Log Panel -->
+                <div class="mt-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Continuous Task Log (${state.currentLogs.length})</h3>
+                    <div class="bg-gray-100 p-4 sm:p-6 rounded-xl h-96 overflow-y-auto flex flex-col space-y-2">
+                        ${state.currentLogs.map(renderLogItem).join('')}
+                        ${state.currentLogs.length === 0 ? '<p class="text-center text-gray-500 mt-12">No updates yet. Be the first to post!</p>' : ''}
+                    </div>
+                </div>
+                
+                ${statusUpdateForm}
+            </div>
+        `;
+    }
+
+    function renderTaskList(title, tasks) {
+        const filteredTasks = tasks.filter(t => 
+            t.name.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
+            t.assignedTo.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
+            t.description.toLowerCase().includes(state.searchQuery.toLowerCase())
+        );
+
+        const renderTaskCard = (task) => {
+            const statusClass = task.status === 'Under Progress' ? 'bg-yellow-500' : 'bg-green-500';
+            
+            return `
+                <div onclick="navigateTo('taskDetail', ${JSON.stringify(task).replace(/"/g, '&quot;')})" 
+                     class="task-card bg-white p-6 rounded-xl shadow-md border-l-4 ${statusClass} transition duration-300">
+                    <div class="flex justify-between items-start">
+                        <h3 class="text-xl font-semibold text-gray-800">${task.name}</h3>
+                        <span class="text-xs font-medium px-3 py-1 rounded-full text-white ${statusClass.replace('500', '700')}">${task.status}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mt-2">Assigned To: <strong>${task.assignedTo}</strong> | Date: ${task.date}</p>
+                    <p class="text-gray-500 text-sm mt-3 truncate">${task.description}</p>
+                </div>
+            `;
+        };
+        
+        return `
+            ${renderHeader(title)}
+            <div class="p-4 sm:p-8">
+                <div class="mb-6 flex justify-between items-center space-x-4">
+                    <input type="text" placeholder="Search tasks by name, user, or keyword..." 
+                           class="flex-grow px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                           value="${state.searchQuery}"
+                           oninput="state.searchQuery = this.value; render();">
+                    ${state.userRole === 'master' ? `
+                        <button onclick="state.view = 'assign'; render()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                            Assign Task
+                        </button>
+                    ` : ''}
+                </div>
+                
+                <div class="space-y-4">
+                    ${filteredTasks.length > 0 
+                        ? filteredTasks.map(renderTaskCard).join('') 
+                        : `<p class="text-center text-gray-500 p-12 bg-white rounded-lg">${state.searchQuery ? 'No tasks matched your search.' : 'No tasks assigned yet.'}</p>`
+                    }
+                </div>
+            </div>
+        `;
+    }
+
+    function renderAdminView() {
+        return renderTaskList('Administrator Dashboard', state.tasks);
+    }
+
+    function renderUserView() {
+        return renderTaskList('My Assigned Tasks', state.tasks);
+    }
+
+    function renderAssignTask() {
+        if (state.userRole !== 'master') return renderNotFound();
+        
+        // Filter out the 'master' user from the list
+        const regularUsers = state.users.filter(u => u.id !== 'admin'); 
+
+        return `
+            ${renderHeader('Assign New Task')}
+            <div class="p-4 sm:p-8">
+                <button onclick="navigateTo('admin')" class="mb-4 text-indigo-600 hover:text-indigo-800 font-semibold flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Back to Dashboard
+                </button>
+                <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-2xl border border-gray-200 mx-auto">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Task Details</h2>
+                    <form onsubmit="handleAssignTask(event)">
+                        <div class="space-y-4">
+                            <div>
+                                <label for="taskDate" class="block text-sm font-medium text-gray-700">Date</label>
+                                <input id="taskDate" name="taskDate" type="date" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label for="taskName" class="block text-sm font-medium text-gray-700">Task Name</label>
+                                <input id="taskName" name="taskName" type="text" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+                                <textarea id="description" name="description" rows="4" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                            </div>
+                            <div>
+                                <label for="assignee" class="block text-sm font-medium text-gray-700">Assign To</label>
+                                <select id="assignee" name="assignee" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="" disabled selected>Select User</option>
+                                    ${regularUsers.map(user => `<option value="${user.id}">${user.id}</option>`).join('')}
+                                </select>
+                                ${regularUsers.length === 0 ? '<p class="text-red-500 mt-1">Please add users to the "Users" sheet first (ID, Password, user).</p>' : ''}
+                            </div>
+                            <!-- Image attachment is handled within the GAS code upon status update, not assignment -->
+                            <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150">
+                                Assign Task
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Simplified User Addition Prompt -->
+                    <div class="mt-6 border-t pt-4">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">User Management (Prototype)</h3>
+                        <p class="text-sm text-gray-600">To quickly add a new user for the demo, simply add a new row in your Google Sheet's **Users** tab:</p>
+                        <ul class="list-disc list-inside text-sm text-gray-600 ml-4 mt-2">
+                            <li>Example: `user1`, `7890`, `user`</li>
+                            <li>The user list above will refresh automatically when you reload the main dashboard.</li>
+                        </ul>
+                    </div>
+
+                </div>
+            </div>
+        `;
+    }
+
+    function renderNotFound() {
+        return `
+            ${renderHeader('Error')}
+            <div class="p-8 text-center text-red-600">
+                <h2 class="text-3xl font-bold">403 Forbidden</h2>
+                <p class="mt-4">You do not have permission to view this page or the state is invalid.</p>
+                <button onclick="logout()" class="mt-6 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition duration-150">
+                    Go to Login
+                </button>
+            </div>
+        `;
+    }
+
+    function render() {
+        const appDiv = document.getElementById('app');
+        let htmlContent = '';
+
+        switch (state.view) {
+            case 'login':
+                htmlContent = renderLogin();
+                break;
+            case 'admin':
+                htmlContent = renderAdminView();
+                break;
+            case 'user':
+                htmlContent = renderUserView();
+                break;
+            case 'assign':
+                htmlContent = renderAssignTask();
+                break;
+            case 'taskDetail':
+                htmlContent = renderTaskDetail();
+                break;
+            default: // loading or unknown state
+                htmlContent = renderLogin();
+                break;
+        }
+
+        appDiv.innerHTML = renderMessage() + renderLoader() + htmlContent;
+    }
+
+    // --- INITIALIZATION ---
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (state.token && state.userId && state.userRole) {
+            loadInitialData();
+        } else {
+            state.view = 'login';
+            render();
+        }
     });
-  }else{
-    alert(data.error);
-  }
-}
 </script>
+
 </body>
 </html>
-
