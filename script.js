@@ -1,9 +1,8 @@
-// ===============================
-// Task App Frontend Script.js
-// IMPORTANT: Replace API_URL with your new deployed Apps Script URL
-// ===============================
+// =================================================================
+// Task App Frontend Script.js (Refined logic and error handling)
+// =================================================================
 
-// !!! REPLACE THIS WITH YOUR DEPLOYED APPS SCRIPT URL AFTER REDEPLOYING !!!
+// !!! CRITICAL: REPLACE THIS WITH YOUR NEW DEPLOYED APPS SCRIPT URL !!!
 const API_URL = "https://script.google.com/macros/s/AKfycbw_5Ulh8InxRk_zSXJp3_d6tAR7VL9XEp0uBHBg2yRI8VIyQw7270TlXUPVm6EmPam8/exec";
 
 let loggedInUser = null;
@@ -15,10 +14,8 @@ function handleResponse(res) {
     }
     return res.text().then(txt => {
         try {
-            // Attempt to parse the text as JSON
             return JSON.parse(txt);
         } catch (e) {
-            // If parsing fails, return the raw text or handle as an error
             console.error("Failed to parse JSON:", txt);
             throw new Error("Received non-JSON response from server.");
         }
@@ -33,35 +30,33 @@ function login() {
       return;
   }
   
-  document.getElementById("login-view").innerHTML = `<h2>Login</h2><input type="email" id="email" placeholder="Enter Gmail ID" value="${email}"><button disabled>Logging in...</button>`;
-
+  // Disable button to prevent multiple clicks while waiting
+  document.querySelector('#login-view button').disabled = true;
 
   fetch(API_URL + "?action=getUsers")
     .then(handleResponse)
     .then(users => {
+      document.querySelector('#login-view button').disabled = false;
       const user = users.find(u => u.Email.toLowerCase() === email);
       if (user) {
         loggedInUser = user;
-        // In a real app, you wouldn't store password, but for this demo, it's fine.
         localStorage.setItem("loggedInUser", JSON.stringify(user)); 
         loadDashboard(user);
       } else {
         alert("Unauthorized! Please use registered Gmail.");
-        document.getElementById("login-view").innerHTML = `<h2>Login</h2><input type="email" id="email" placeholder="Enter Gmail ID"><button onclick="login()">Login</button>`;
       }
     })
     .catch(err => {
+      document.querySelector('#login-view button').disabled = false;
       console.error("Login Error:", err);
-      // Display the specific error message for better debugging
+      // More descriptive error message for the user
       alert(`Backend not responding. Check Apps Script deployment and CORS. Error: ${err.message}`);
-      document.getElementById("login-view").innerHTML = `<h2>Login</h2><input type="email" id="email" placeholder="Enter Gmail ID"><button onclick="login()">Login</button>`;
     });
 }
 
 // === Load Dashboard ===
 function loadDashboard(user) {
   document.getElementById("login-view").classList.add("hidden");
-
   document.getElementById("admin-content").innerHTML = "";
   document.getElementById("user-content").innerHTML = "";
 
@@ -91,14 +86,11 @@ function showAssignTask() {
     <input type="email" id="assignedTo" placeholder="Assign to (user's email)" class="border p-2 rounded w-full mb-4"><br>
     <button id="saveTaskBtn">Save Task</button>
   `;
-
-  // Attach listener
   document.getElementById("saveTaskBtn").addEventListener("click", addTask);
 }
 
 function addTask() {
   const taskName = document.getElementById("taskName").value.trim();
-  const description = document.getElementById("taskDesc").value.trim();
   const assignedTo = document.getElementById("assignedTo").value.trim();
   
   if (!taskName || !assignedTo) {
@@ -106,60 +98,54 @@ function addTask() {
       return;
   }
   
-  // Disable button to prevent double-click
   document.getElementById("saveTaskBtn").disabled = true;
 
   const task = {
     id: 'TASK_' + Date.now(),
     date: new Date().toLocaleDateString('en-US'),
     taskName: taskName,
-    description: description,
+    description: document.getElementById("taskDesc").value,
     assignedTo: assignedTo
   };
   
-  // NOTE: When using fetch, the browser sends a pre-flight OPTIONS request
-  // that the Apps Script's doPost must handle (which the provided Code.gs does).
   fetch(API_URL + "?action=addTask", {
     method: "POST",
     headers: {
-        'Content-Type': 'application/json', // Explicitly set content type
+        'Content-Type': 'application/json',
     },
     body: JSON.stringify(task)
   })
     .then(handleResponse)
     .then(result => {
+      document.getElementById("saveTaskBtn").disabled = false;
       if (result.success) {
         alert("Task Added Successfully");
         showAllTasks();
       } else {
         alert("Error adding task: " + (result.error || "Unknown error"));
-        document.getElementById("saveTaskBtn").disabled = false;
       }
     })
     .catch(err => {
+      document.getElementById("saveTaskBtn").disabled = false;
       console.error("Add Task Error:", err);
       alert("Error adding task. Check console for details.");
-      document.getElementById("saveTaskBtn").disabled = false;
     });
 }
 
-function renderTaskList(tasks, targetElementId, isUserView = false) {
-    let html = tasks.length === 0 ? "<div>No tasks found.</div>" : "";
+function renderTaskList(tasks, targetElementId) {
+    let html = tasks.length === 0 ? "<div>No tasks found.</div>" : "<ul>";
 
     tasks.forEach(t => {
-        const statusColor = t.Status === 'Completed' ? 'text-green-600' : (t.Status === 'Open' ? 'text-red-600' : 'text-yellow-600');
+        const status = t.Status || 'Open';
+        const statusColor = status === 'Completed' ? 'text-green-600' : (status === 'Open' ? 'text-red-600' : 'text-yellow-600');
         
-        html += `
-            <div class="border p-4 mb-4 rounded shadow-md">
-                <h4 class="font-bold text-lg">${t.Task_Name}</h4>
-                <p class="text-sm mb-2">Assigned to: ${t.Assigned_To}</p>
-                <p class="text-sm mb-2">Date Assigned: ${t.Date_Assigned}</p>
-                <p class="text-sm mb-2">Description: ${t.Task_Description}</p>
-                <p class="${statusColor} font-semibold">Status: ${t.Status}</p>
-                ${t.Latest_Update_Text ? `<p class="text-xs italic mt-2">Latest Update: ${t.Latest_Update_Text}</p>` : ''}
-            </div>
-        `;
+        html += `<li class="border p-2 mb-2 rounded">
+                    <h4 class="font-bold">${t.Task_Name || t.TaskName}</h4>
+                    <p class="text-sm">Assigned to: ${t.Assigned_To}</p>
+                    <p class="${statusColor} font-semibold">Status: ${status}</p>
+                </li>`;
     });
+    html += "</ul>";
     document.getElementById(targetElementId).innerHTML = html;
 }
 
@@ -168,12 +154,8 @@ function showAllTasks() {
   fetch(API_URL + "?action=getTasks&userEmail=" + loggedInUser.Email)
     .then(handleResponse)
     .then(tasks => {
-      const allTasks = tasks.map(t => ({
-          ...t,
-          Status: t.Status || 'Open' // Ensure Status is present
-      }));
       document.getElementById("admin-content").innerHTML = "<h3>All Tasks (Admin View)</h3>";
-      renderTaskList(allTasks, "admin-content");
+      renderTaskList(tasks, "admin-content");
     })
     .catch(err => {
       console.error("Admin Fetch Tasks Error:", err);
@@ -206,7 +188,7 @@ function showMyTasks() {
     .then(tasks => {
       const activeTasks = tasks.filter(t => (t.Status && t.Status.toLowerCase() !== "completed"));
       document.getElementById("user-content").innerHTML = "<h3>My Active Tasks (User View)</h3>";
-      renderTaskList(activeTasks, "user-content", true);
+      renderTaskList(activeTasks, "user-content");
     })
     .catch(err => {
       console.error("User Fetch Active Tasks Error:", err);
@@ -221,7 +203,7 @@ function showMyCompletedTasks() {
     .then(tasks => {
       const completedTasks = tasks.filter(t => (t.Status && t.Status.toLowerCase() === "completed"));
       document.getElementById("user-content").innerHTML = "<h3>My Completed Tasks (User View)</h3>";
-      renderTaskList(completedTasks, "user-content", true);
+      renderTaskList(completedTasks, "user-content");
     })
     .catch(err => {
       console.error("User Fetch Completed Tasks Error:", err);
@@ -235,29 +217,16 @@ function showMyCompletedTasks() {
 // ===============================
 window.onload = function() {
   const savedUser = localStorage.getItem("loggedInUser");
-  
-  // Re-enable all buttons in the HTML by giving them IDs for better event handling
-  document.querySelector('#login-view button').id = 'loginBtn';
-  document.querySelector('#admin-view button:nth-child(2)').id = 'assignTaskBtn';
-  document.querySelector('#admin-view button:nth-child(3)').id = 'allTasksBtn';
-  document.querySelector('#admin-view button:nth-child(4)').id = 'completedTasksBtn';
-  document.querySelector('#admin-view button:nth-child(5)').id = 'logoutBtnAdmin';
-  document.querySelector('#user-view button:nth-child(2)').id = 'myTasksBtn';
-  document.querySelector('#user-view button:nth-child(3)').id = 'myCompletedTasksBtn';
-  document.querySelector('#user-view button:nth-child(4)').id = 'logoutBtnUser';
-  
-  // Initial check for logged-in user
   if (savedUser) {
     try {
         loggedInUser = JSON.parse(savedUser);
         loadDashboard(loggedInUser);
     } catch (e) {
-        console.error("Failed to parse saved user data:", e);
         localStorage.removeItem("loggedInUser");
     }
   }
 
-  // Attach all button listeners (ensure these elements exist in your index.html)
+  // Attach all button listeners (using optional chaining for robustness)
   document.getElementById("loginBtn")?.addEventListener("click", login);
   document.getElementById("assignTaskBtn")?.addEventListener("click", showAssignTask);
   document.getElementById("allTasksBtn")?.addEventListener("click", showAllTasks);
