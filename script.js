@@ -3,7 +3,7 @@
 // =================================================================
 
 // !!! CRITICAL: REPLACE THIS WITH YOUR NEW DEPLOYED APPS SCRIPT URL !!!
-const API_URL = "https://script.google.com/macros/s/AKfycbyRaFPrATE2MdwpY_GW4XBNqw4hRI9iDOXKMq_dPw5HXzzTIpoViVPcLjxH2NThy1ax/exec"; // PASTE THE URL FROM STEP 1 HERE
+const API_URL = "https://script.google.com/macros/s/AKfycbxXnJKp5VnL8LW_mAXyy2WDd2pXYEfx8aPQRAjESNz3pJygiywplgKmKHKXA3kfTE8Q/exec"; // PASTE THE URL FROM STEP 1 HERE
 
 let loggedInUser = null;
 
