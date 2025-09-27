@@ -3,21 +3,23 @@
 // =================================================================
 
 // !!! CRITICAL: REPLACE THIS WITH YOUR NEW DEPLOYED APPS SCRIPT URL !!!
-const API_URL = "https://script.google.com/macros/s/AKfycbw_5Ulh8InxRk_zSXJp3_d6tAR7VL9XEp0uBHBg2yRI8VIyQw7270TlXUPVm6EmPam8/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyRaFPrATE2MdwpY_GW4XBNqw4hRI9iDOXKMq_dPw5HXzzTIpoViVPcLjxH2NThy1ax/exec"; // PASTE THE URL FROM STEP 1 HERE
 
 let loggedInUser = null;
 
 // --- Helper to handle JSON fetch response ---
 function handleResponse(res) {
+    // This catches HTTP errors like 404, 500, etc.
     if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
     }
     return res.text().then(txt => {
         try {
+            // This catches the rare case where Apps Script returns HTML instead of JSON
             return JSON.parse(txt);
         } catch (e) {
             console.error("Failed to parse JSON:", txt);
-            throw new Error("Received non-JSON response from server.");
+            throw new Error("Received non-JSON response from server. Check Apps Script logs.");
         }
     });
 }
@@ -30,13 +32,17 @@ function login() {
       return;
   }
   
-  // Disable button to prevent multiple clicks while waiting
-  document.querySelector('#login-view button').disabled = true;
+  const loginButton = document.querySelector('#login-view button');
+  loginButton.disabled = true;
+  loginButton.textContent = 'Logging in...';
 
+  // This is the call that is failing due to the old URL/CORS issue
   fetch(API_URL + "?action=getUsers")
     .then(handleResponse)
     .then(users => {
-      document.querySelector('#login-view button').disabled = false;
+      loginButton.disabled = false;
+      loginButton.textContent = 'Login';
+      
       const user = users.find(u => u.Email.toLowerCase() === email);
       if (user) {
         loggedInUser = user;
@@ -47,16 +53,18 @@ function login() {
       }
     })
     .catch(err => {
-      document.querySelector('#login-view button').disabled = false;
+      loginButton.disabled = false;
+      loginButton.textContent = 'Login';
       console.error("Login Error:", err);
-      // More descriptive error message for the user
-      alert(`Backend not responding. Check Apps Script deployment and CORS. Error: ${err.message}`);
+      // Display the specific fetch error message
+      alert(`Connection Failed. Error: ${err.message}. Please check API_URL and Apps Script logs.`);
     });
 }
 
 // === Load Dashboard ===
 function loadDashboard(user) {
   document.getElementById("login-view").classList.add("hidden");
+
   document.getElementById("admin-content").innerHTML = "";
   document.getElementById("user-content").innerHTML = "";
 
@@ -77,6 +85,7 @@ function logout() {
 
 // ===============================
 // Admin Functions
+// (Note: Functions for task management use POST and are crucial to test after fixing the GET/CORS issue)
 // ===============================
 function showAssignTask() {
   document.getElementById("admin-content").innerHTML = `
@@ -98,7 +107,9 @@ function addTask() {
       return;
   }
   
-  document.getElementById("saveTaskBtn").disabled = true;
+  const saveBtn = document.getElementById("saveTaskBtn");
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
 
   const task = {
     id: 'TASK_' + Date.now(),
@@ -117,7 +128,8 @@ function addTask() {
   })
     .then(handleResponse)
     .then(result => {
-      document.getElementById("saveTaskBtn").disabled = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Task';
       if (result.success) {
         alert("Task Added Successfully");
         showAllTasks();
@@ -126,9 +138,10 @@ function addTask() {
       }
     })
     .catch(err => {
-      document.getElementById("saveTaskBtn").disabled = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Task';
       console.error("Add Task Error:", err);
-      alert("Error adding task. Check console for details.");
+      alert(`Error adding task: ${err.message}.`);
     });
 }
 
